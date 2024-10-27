@@ -21,33 +21,28 @@ object TableParser {
 
         var previousEndTime = dayStartTime
         var currentEvent: Event? = null
-        val currentActivity = StringBuilder()
 
         for (line in contentLines) {
             val columns = parseColumns(line)
             if (columns.size >= 2) {
-                currentEvent?.let {
-                    finalizeCurrentEvent(it, currentActivity, previousEndTime)
-                    currentActivity.clear()
-                    events.add(it)
-                }
-
                 val endTime = LocalTime.parse(columns[0], timeFormatter)
                 val project = columns[1]
                 val activity = if (columns.size == 3) columns[2] else ""
 
-                currentEvent = createNewEvent(previousEndTime, endTime, project, activity)
-                previousEndTime = endTime
+                currentEvent = Event(
+                    startTime = previousEndTime,
+                    endTime = endTime,
+                    durationMinutes = previousEndTime.until(endTime, ChronoUnit.MINUTES),
+                    project = project,
+                    activity = activity.trim()
+                )
 
-                if (activity.isNotEmpty()) {
-                    currentActivity.append(activity)
-                }
+                events.add(currentEvent)
+                previousEndTime = endTime
             } else if (columns.size == 1 && currentEvent != null) {
-                appendToCurrentActivity(currentActivity, columns[0])
+                currentEvent.activity = currentEvent.activity + ". " + columns[0]
             }
         }
-
-        currentEvent?.let { finalizeCurrentEvent(it, currentActivity, previousEndTime) }
 
         return events
     }
@@ -65,29 +60,7 @@ object TableParser {
         }
     }
 
-    private fun createNewEvent(
-        previousEndTime: LocalTime,
-        endTime: LocalTime,
-        project: String,
-        activity: String
-    ): Event {
-        return Event(previousEndTime, endTime, project, activity)
-    }
-
     private fun parseColumns(line: String): List<String> {
         return line.split("|").map { it.trim() }.filter { it.isNotEmpty() }
-    }
-
-    private fun appendToCurrentActivity(currentActivity: StringBuilder, additionalText: String) {
-        currentActivity.append(". ").append(additionalText)
-    }
-
-    private fun finalizeCurrentEvent(
-        currentEvent: Event,
-        currentActivity: StringBuilder,
-        previousEndTime: LocalTime?
-    ) {
-        currentEvent.durationMinutes = previousEndTime?.until(currentEvent.endTime, ChronoUnit.MINUTES) ?: 0
-        currentEvent.activity = currentActivity.toString().trim()
     }
 }
